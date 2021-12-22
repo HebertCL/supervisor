@@ -4,6 +4,14 @@ import logging
 
 import psutil
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+
+logger.addHandler(handler)
+
 def is_process_alive(pid):
     """
     Checks if a process is running given its pid.
@@ -80,17 +88,18 @@ def args_parser(args):
     return parser.parse_args(args)
 
 def main(pid, proc_name, healthcheck, retries, backoff):
-    """ Main """
-    logging.info(
-        f"Validating PID %v is up and running", pid
+    """ 
+    Main function
+    """
+    logger.info(
+        f"Validating PID {pid} is up and running"
     )
     if is_process_alive(pid) and is_supervised_process(pid, proc_name):
-        logging.info(
-            f"Process %s running with PID %v. Checking back in the next %v seconds",
-            proc_name, pid, healthcheck
+        logger.info(
+            f"Process {proc_name} running with PID {pid}. Checking back in the next {healthcheck} seconds"
         )
     else:
-        logging.info(
+        logger.info(
             f"Process or command does not match. Exiting"
         )
         
