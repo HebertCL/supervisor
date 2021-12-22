@@ -1,5 +1,9 @@
+import os
 import sys
+import time
+import shlex
 import argparse
+import subprocess
 import logging
 
 import psutil
@@ -40,6 +44,35 @@ def is_supervised_process(pid, name):
         return True
 
     return False
+
+
+def start_process(name, healthcheck, attempts, backoff):
+    """
+    Run a given process and retries a number of times if process exit code
+    is not successful. Returns an error when number of attempts is reached.
+
+    param name: str The command to be executed
+    param attempts: int The number of attempts to run the command
+    param backoff: int Time in seconds to wait between every attempt
+    """ 
+    tries = 0
+    
+    logger.info(
+        f"Running process {name}"
+    )
+    while tries <= attempts:
+        with subprocess.Popen(command) as proc:
+            exit_status = proc.wait(healthcheck)
+            if exit_status == None:
+                logger.info(
+                    f"Process {name} running with PID {proc.pid}"
+                )
+                continue
+            elif exit_status == 0:
+                logger.info(
+                    f"Process {name} with PID {proc.pid} finished successfully"
+                )
+                return proc.returncode
 
 
 def args_parser(args):
