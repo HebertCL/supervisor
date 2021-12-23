@@ -46,33 +46,67 @@ def is_supervised_process(pid, name):
     return False
 
 
-def start_process(name, healthcheck, attempts, backoff):
+def run(cmd):
     """
-    Run a given process and retries a number of times if process exit code
-    is not successful. Returns an error when number of attempts is reached.
+    Run a given process.
+    Returns the PID and returned code from execution.
 
-    param name: str The command to be executed
-    param attempts: int The number of attempts to run the command
-    param backoff: int Time in seconds to wait between every attempt
+    param cmd: str The command to be executed
     """ 
-    tries = 0
-    
     logger.info(
-        f"Running process {name}"
+        f"Running process {cmd}"
     )
-    while tries <= attempts:
-        with subprocess.Popen(command) as proc:
-            exit_status = proc.wait(healthcheck)
-            if exit_status == None:
-                logger.info(
-                    f"Process {name} running with PID {proc.pid}"
-                )
-                continue
-            elif exit_status == 0:
-                logger.info(
-                    f"Process {name} with PID {proc.pid} finished successfully"
-                )
-                return proc.returncode
+    
+    command = shlex.split(cmd)
+    proc = subprocess.Popen(command)
+    proc.wait()
+    
+    return proc.pid, proc.returncode
+
+
+def supervise_process(pid, cmd):
+    """
+    Checks for PID and cmdline to match with provided input.
+    Returns false if either of the conditions is not met.
+
+    param pid: int The pid number
+    param name: str The command to validate against cmdline method
+    """
+    if is_process_alive(pid) and is_supervised_process(pid, cmd):
+        return True
+
+    return False
+
+
+def run_process(cmd, retry, backoff):
+    """
+    Attemtps to start a process and retries in case it fails.
+    Returns exit code.
+
+    param cmd: str The command to execute
+    param retry: int The number of times to attempt to run the command before giving up
+    param backoff: int Time in seconds between every attempt
+    """
+    attempt = 1
+
+    while attempt < retry:
+        pid, status_code = run(cmd)
+        if status_code == 0:
+            return status_code
+        else:
+            logger.info(
+                f"Command {cmd} failed with status code {status_code}. Attempt {attempt}/{retry}"
+            )
+            time.sleep(backoff)
+    
+    pid, status_code = run(cmd)
+    if status_code != 0:
+        logger.info(
+            f"Command {cmd} execution failed with status {status_code}. Exiting"
+        )
+        return status_code
+    else:
+        return status_code
 
 
 def args_parser(args):
@@ -120,22 +154,34 @@ def args_parser(args):
 
     return parser.parse_args(args)
 
-def main(pid, proc_name, healthcheck, retries, backoff):
+def main(pid, cmd, healthcheck, retry, backoff):
     """ 
     Main function
     """
     logger.info(
         f"Validating PID {pid} is up and running"
     )
-    if is_process_alive(pid) and is_supervised_process(pid, proc_name):
+    while supervise_process(pid, cmd): 
         logger.info(
-            f"Process {proc_name} running with PID {pid}. Checking back in the next {healthcheck} seconds"
+            f"Process {cmd} running with PID {pid}. Checking back in the next {healthcheck} seconds"
         )
+        time.sleep(healthcheck)
+
+   
+    logger.info(
+        f"Process not found. Starting process..."
+    )
+    status = run_process(cmd, retry, backoff)
+    if status == 0:
+        logger.info(
+            f"Process {cmd} with PID {pid} finished with status {status}"
+        )
+        exit(0)
     else:
-        logger.info(
-            f"Process or command does not match. Exiting"
+        logger.error(
+            f"Process execution failed. Exiting"
         )
-        
+        exit(1)
 
 
 if __name__ == "__main__":
