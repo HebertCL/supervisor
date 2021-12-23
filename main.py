@@ -1,4 +1,8 @@
-import os
+"""
+Script that looks for a process using its pid and command
+and starts the command if not running, with the ability to attempt
+to run the command several times if exit statusis other than 0
+"""
 import sys
 import time
 import shlex
@@ -15,6 +19,7 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.INFO)
 
 logger.addHandler(handler)
+
 
 def is_process_alive(pid):
     """
@@ -52,15 +57,13 @@ def run(cmd):
     Returns the PID and returned code from execution.
 
     param cmd: str The command to be executed
-    """ 
-    logger.info(
-        f"Running process {cmd}"
-    )
-    
+    """
+    logger.info("Running process %s", cmd)
+
     command = shlex.split(cmd)
     proc = subprocess.Popen(command)
     proc.wait()
-    
+
     return proc.pid, proc.returncode
 
 
@@ -90,27 +93,31 @@ def run_process(cmd, retry, backoff):
     attempt = 1
 
     while attempt < retry:
-        pid, status_code = run(cmd)
+        _, status_code = run(cmd)
         if status_code == 0:
             return status_code
         else:
             logger.info(
-                f"Command {cmd} failed with status code {status_code}. Attempt {attempt}/{retry}"
+                "Command %s failed with status code %s. Attempt %s/%s",
+                cmd,
+                status_code,
+                attempt,
+                retry,
             )
             time.sleep(backoff)
-    
-    pid, status_code = run(cmd)
+
+    _, status_code = run(cmd)
     if status_code != 0:
         logger.info(
-            f"Command {cmd} execution failed with status {status_code}. Exiting"
+            "Command %s execution failed with status %s. Exiting", cmd, status_code
         )
         return status_code
-    else:
-        return status_code
+
+    return status_code
 
 
 def args_parser(args):
-    """ 
+    """
     Argument parser function
 
     param: args arguments
@@ -154,34 +161,29 @@ def args_parser(args):
 
     return parser.parse_args(args)
 
+
 def main(pid, cmd, healthcheck, retry, backoff):
-    """ 
+    """
     Main function
     """
-    logger.info(
-        f"Validating PID {pid} is up and running"
-    )
-    while supervise_process(pid, cmd): 
+    logger.info("Validating PID %s is up and running", pid)
+    while supervise_process(pid, cmd):
         logger.info(
-            f"Process {cmd} running with PID {pid}. Checking back in the next {healthcheck} seconds"
+            "Process %s running with PID %s. Checking back in the next %s seconds",
+            cmd,
+            pid,
+            healthcheck,
         )
         time.sleep(healthcheck)
 
-   
-    logger.info(
-        f"Process not found. Starting process..."
-    )
+    logger.info("Process not found. Starting process...")
     status = run_process(cmd, retry, backoff)
     if status == 0:
-        logger.info(
-            f"Process {cmd} with PID {pid} finished with status {status}"
-        )
-        exit(0)
-    else:
-        logger.error(
-            f"Process execution failed. Exiting"
-        )
-        exit(1)
+        logger.info("Process %s with PID %s finished with status %s", cmd, pid, status)
+        sys.exit(0)
+
+    logger.error("Process execution failed. Exiting")
+    sys.exit(1)
 
 
 if __name__ == "__main__":
