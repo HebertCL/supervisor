@@ -105,6 +105,7 @@ def run_process(cmd, retry, backoff):
                 retry,
             )
             time.sleep(backoff)
+            attempt +=1
 
     _, status_code = run(cmd)
     if status_code != 0:
